@@ -36,7 +36,7 @@ newgrp docker
 ## Step 2: Clone the Project
 
 ```bash
-git clone <your-repo-url> ~/trackbot
+git clone https://github.com/DecafSunrise/TrackBot.git ~/trackbot
 cd ~/trackbot
 ```
 
