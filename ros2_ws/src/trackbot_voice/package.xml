@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>trackbot_voice</name>
+  <version>0.1.0</version>
+  <description>TrackBot voice pipeline: STT + LLM + TTS</description>
+  <maintainer email="user@trackbot.local">user</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

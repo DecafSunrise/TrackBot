@@ -1,0 +1,6 @@
+int64 encoder_left
+int64 encoder_right
+float32 speed_left
+float32 speed_right
+float32 current_left
+float32 current_right

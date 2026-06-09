@@ -1,0 +1,105 @@
+x-ros-common: &ros-common
+  image: trackbot/ros2-base:latest
+  build:
+    context: .
+    dockerfile: docker/ros2-core/Dockerfile
+  environment:
+    ROS_DOMAIN_ID: ${ROS_DOMAIN_ID}
+    RMW_IMPLEMENTATION: ${RMW_IMPLEMENTATION}
+  network_mode: host
+  ipc: host
+  pid: host
+  restart: unless-stopped
+  volumes: &ros-volumes
+    # Mount source for hot-reload during development
+    - ./ros2_ws/src:/ros2_ws/src:ro
+
+services:
+  # ── Core ROS2 daemon ──────────────────────────────────
+  ros2-daemon:
+    <<: *ros-common
+    container_name: trackbot-ros2-daemon
+    command: >
+      bash -c "ros2 daemon start && tail -f /dev/null"
+    healthcheck:
+      test: ["CMD", "ros2", "daemon", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Motor control (serial bridge to ATmega32U4) ──────
+  motor-control:
+    <<: *ros-common
+    container_name: trackbot-motor-control
+    privileged: true
+    devices:
+      - ${ARDUINO_PORT}:${ARDUINO_PORT}
+    command: >
+      ros2 run trackbot_control serial_bridge.py
+        --port ${ARDUINO_PORT}
+        --baud ${BAUD_RATE}
+    depends_on:
+      ros2-daemon:
+        condition: service_healthy
+
+  # ── OAK-D-Lite camera ────────────────────────────────
+  oak-camera:
+    <<: *ros-common
+    container_name: trackbot-oak-camera
+    build:
+      context: .
+      dockerfile: docker/oak-camera/Dockerfile
+    privileged: true
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    volumes:
+      - *ros-volumes
+      - /dev/shm:/dev/shm
+    command: >
+      ros2 launch depthai_examples stereo_inertial_node.launch.py
+    depends_on:
+      ros2-daemon:
+        condition: service_healthy
+
+  # ── Voice pipeline (whisper + LLM + TTS) ─────────────
+  voice-pipeline:
+    <<: *ros-common
+    container_name: trackbot-voice
+    build:
+      context: .
+      dockerfile: docker/voice-pipeline/Dockerfile
+    privileged: true
+    devices:
+      - /dev/snd:/dev/snd
+    volumes:
+      - *ros-volumes
+      - ./models/whisper:/models/whisper:ro
+      - ./models/ollama:/root/.ollama
+      - ./models/piper:/models/piper:ro
+    environment:
+      WHISPER_MODEL: /models/whisper/ggml-tiny.en.bin
+      OLLAMA_MODEL: phi3:mini
+      PIPER_MODEL: /models/piper/en_US-lessac-medium.onnx
+      PIPER_VOICE: /models/piper/en_US-lessac-medium.onnx.json
+    command: >
+      ros2 launch trackbot_voice voice_pipeline.launch.py
+    depends_on:
+      ros2-daemon:
+        condition: service_healthy
+
+  # ── Web dashboard (FastAPI) ──────────────────────────
+  web-dashboard:
+    image: python:3.12-slim
+    container_name: trackbot-web
+    working_dir: /app
+    volumes:
+      - ./docker/web-dashboard:/app:ro
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "pip install -q fastapi uvicorn && uvicorn dashboard:app --host 0.0.0.0 --port 8000"
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID}
+      RMW_IMPLEMENTATION: ${RMW_IMPLEMENTATION}
+    network_mode: host
+    restart: unless-stopped
