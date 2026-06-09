@@ -1,6 +1,6 @@
 site_name: TrackBot Documentation
 site_description: ROS2 tracked robot with OAK-D-Lite vision and voice AI
-repo_url: https://github.com/your-org/trackbot
+repo_url: https://github.com/DecafSunrise/TrackBot
 docs_dir: docs
 theme:
   name: material
